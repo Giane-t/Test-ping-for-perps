@@ -35,8 +35,6 @@ Results folder:
 ├── main.py
 ├── settings.py
 ├── requirements.txt
-├── run_ping_checker.bat
-├── exchange_ping_checker.py
 └── results/
 ```
 
@@ -155,8 +153,6 @@ All generated files are saved into `results/`:
 ├── main.py
 ├── settings.py
 ├── requirements.txt
-├── run_ping_checker.bat
-├── exchange_ping_checker.py
 └── results/
 ```
 
