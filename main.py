@@ -349,7 +349,7 @@ def get_hosting_recommendation(locations: list[str]) -> str:
     return f"Host closer to {locations[0]}"
 
 
-def save_results(results: list, timestamp: str) -> None:
+def save_results(results: list, timestamp: str, own_location: dict = None) -> None:
     ensure_results_dir()
 
     json_path = RESULTS_DIR / f"ping_results_{timestamp}.json"
@@ -357,7 +357,7 @@ def save_results(results: list, timestamp: str) -> None:
     summary_path = RESULTS_DIR / f"ping_summary_{timestamp}.txt"
 
     with json_path.open("w", encoding="utf-8") as file:
-        json.dump({"timestamp": timestamp, "results": results}, file, ensure_ascii=False, indent=2)
+        json.dump({"timestamp": timestamp, "source_location": own_location, "results": results}, file, ensure_ascii=False, indent=2)
     print(f"\nSaved JSON: {json_path}")
 
     with csv_path.open("w", newline="", encoding="utf-8-sig") as file:
@@ -404,6 +404,13 @@ def save_results(results: list, timestamp: str) -> None:
         file.write(f"EXCHANGE SERVER SUMMARY - {timestamp}\n")
         file.write("=" * 80 + "\n\n")
 
+        if own_location and own_location.get("ip"):
+            file.write("SOURCE (where this bot is running):\n")
+            file.write(f"  IP:       {own_location['ip']}\n")
+            file.write(f"  Location: {own_location['city']}, {own_location['region']}, {own_location['country']}\n")
+            file.write(f"  ISP/Org:  {own_location['org'] or own_location['isp']}\n")
+            file.write(f"  AS:       {own_location['as']}\n\n")
+
         for exchange in results:
             file.write(f"{exchange['name'].upper()}\n")
             file.write("-" * 40 + "\n")
@@ -449,6 +456,26 @@ def save_results(results: list, timestamp: str) -> None:
     print(f"Saved summary: {summary_path}")
 
 
+def detect_own_location() -> dict:
+    info = {"ip": None, "country": None, "city": None, "region": None, "isp": None, "org": None, "as": None, "error": None}
+    try:
+        response = requests.get("http://ip-api.com/json/", timeout=GEOIP_TIMEOUT_SECONDS)
+        data = response.json()
+        if data.get("status") == "success":
+            info["ip"] = data.get("query")
+            info["country"] = data.get("country")
+            info["city"] = data.get("city")
+            info["region"] = data.get("regionName")
+            info["isp"] = data.get("isp")
+            info["org"] = data.get("org")
+            info["as"] = data.get("as")
+        else:
+            info["error"] = data.get("message", "Unknown error")
+    except Exception as exc:
+        info["error"] = str(exc)
+    return info
+
+
 def main() -> None:
     print("=" * 60)
     print("EXCHANGE SERVER PING & GEOLOCATION CHECKER")
@@ -456,14 +483,26 @@ def main() -> None:
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     print(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Exchanges: {', '.join(EXCHANGES.keys())}")
+
+    print("\nDetecting your location...", end=" ", flush=True)
+    own_location = detect_own_location()
+    if own_location["ip"]:
+        print(f"OK")
+        print(f"  Your IP:       {own_location['ip']}")
+        print(f"  Location:      {own_location['city']}, {own_location['region']}, {own_location['country']}")
+        print(f"  ISP/Org:       {own_location['org'] or own_location['isp']}")
+        print(f"  AS:            {own_location['as']}")
+    else:
+        print(f"FAILED: {own_location.get('error', 'Unknown')}")
+
+    print(f"\nExchanges: {', '.join(EXCHANGES.keys())}")
 
     results = []
     for exchange_name, exchange_data in EXCHANGES.items():
         results.append(analyze_exchange(exchange_name, exchange_data))
 
     print_summary(results)
-    save_results(results, timestamp)
+    save_results(results, timestamp, own_location)
 
     print("\n" + "=" * 60)
     print("CHECK COMPLETE")
