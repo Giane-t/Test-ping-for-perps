@@ -28,7 +28,7 @@ EXCHANGES = {
         ],
         "description": "Largest CEX by volume (Binance)",
         "websocket": {
-            "url": "wss://stream.binance.com:9443/ws/btcusdt@ticker",
+            "url": "wss://stream.binance.com:443/ws/btcusdt@ticker",
             "subscribe": None,
         },
     },
