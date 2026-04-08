@@ -409,14 +409,18 @@ def print_summary(results: list) -> None:
             for ws in ws_list:
                 ws_host = urlparse(ws["url"]).netloc
                 if ws.get("connect_ms") is not None:
-                    print(
+                    parts = [
                         f"{'':15} {ws_host:<16} "
                         f"connect: {ws['connect_ms']:<8} "
-                        f"1st msg: {ws['first_message_ms']:<8} "
-                        f"stream avg: {ws['stream_avg_ms']:<8} "
-                        f"min: {ws['stream_min_ms']:<8} "
-                        f"max: {ws['stream_max_ms']}"
-                    )
+                        f"1st msg: {ws['first_message_ms']:<8}"
+                    ]
+                    if ws.get("stream_avg_ms") is not None:
+                        parts.append(
+                            f" stream avg: {ws['stream_avg_ms']:<8} "
+                            f"min: {ws['stream_min_ms']:<8} "
+                            f"max: {ws['stream_max_ms']}"
+                        )
+                    print("".join(parts))
                 else:
                     print(f"{'':15} {ws_host:<16} ERROR: {ws.get('error', 'Unknown')}")
 
@@ -538,6 +542,8 @@ def save_results(results: list, timestamp: str, own_location: dict = None) -> No
                     file.write(f"WebSocket: {ws['url']}\n")
                     file.write(f"  WS Connect: {ws['connect_ms']} ms\n")
                     file.write(f"  WS First Message: {ws['first_message_ms']} ms\n")
+                    if ws.get("stream_avg_ms") is not None:
+                        file.write(f"  WS Stream Avg: {ws['stream_avg_ms']} ms (min: {ws['stream_min_ms']}, max: {ws['stream_max_ms']})\n")
                 elif ws.get("error"):
                     file.write(f"WebSocket: {ws['url']} — ERROR: {ws['error']}\n")
 
