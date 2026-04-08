@@ -228,11 +228,15 @@ def check_http_latency(url: str, timeout: int = HTTP_TIMEOUT_SECONDS) -> dict:
     return result
 
 
-def check_ws_latency(ws_config: dict) -> dict:
+def check_ws_latency(ws_config: dict, sample_count: int = 5) -> dict:
     result = {
         "url": ws_config["url"],
         "connect_ms": None,
         "first_message_ms": None,
+        "stream_avg_ms": None,
+        "stream_min_ms": None,
+        "stream_max_ms": None,
+        "messages_received": 0,
         "error": None,
     }
 
@@ -253,6 +257,18 @@ def check_ws_latency(ws_config: dict) -> dict:
         ws.recv()
         msg_time = time.perf_counter()
         result["first_message_ms"] = round((msg_time - msg_start) * 1000, 2)
+
+        intervals = []
+        for _ in range(sample_count):
+            t1 = time.perf_counter()
+            ws.recv()
+            t2 = time.perf_counter()
+            intervals.append(round((t2 - t1) * 1000, 2))
+
+        result["messages_received"] = sample_count
+        result["stream_avg_ms"] = round(sum(intervals) / len(intervals), 2)
+        result["stream_min_ms"] = min(intervals)
+        result["stream_max_ms"] = max(intervals)
 
         ws.close()
     except Exception as exc:
@@ -326,7 +342,11 @@ def analyze_exchange(exchange_name: str, exchange_data: dict) -> dict:
             ws_result = check_ws_latency(ws_config)
             exchange_result["websocket"].append(ws_result)
             if ws_result["connect_ms"] is not None:
-                print(f"OK (connect: {ws_result['connect_ms']} ms, first msg: {ws_result['first_message_ms']} ms)")
+                print(
+                    f"OK (connect: {ws_result['connect_ms']} ms, "
+                    f"first msg: {ws_result['first_message_ms']} ms, "
+                    f"stream avg: {ws_result['stream_avg_ms']} ms)"
+                )
             else:
                 print(f"ERROR: {ws_result.get('error', 'Unknown')}")
     else:
@@ -358,14 +378,14 @@ def print_summary(results: list) -> None:
     print("\n" + "=" * 100)
     print("FINAL RESULTS")
     print("=" * 100)
-    print(f"\n{'Exchange':<15} {'IP':<16} {'ICMP Ping':<12} {'HTTP':<12} {'WS Connect':<12} {'WS Msg':<12} {'Location':<20}")
-    print("-" * 100)
+    print(f"\n{'Exchange':<15} {'IP':<16} {'ICMP':<12} {'HTTP':<12} {'Location':<20}")
+    print("-" * 75)
 
     for exchange in results:
         name = exchange["name"]
         ws_list = exchange.get("websocket") or []
 
-        for i, endpoint in enumerate(exchange["endpoints"]):
+        for endpoint in exchange["endpoints"]:
             ping_result = endpoint["ping"]
             http_result = endpoint["http"]
             geo_result = endpoint["geolocation"]
@@ -381,21 +401,26 @@ def print_summary(results: list) -> None:
             else:
                 location = "Unknown"
 
-            print(f"{name:<15} {ip:<16} {icmp:<12} {http:<12} {'':12} {'':12} {location:<20}")
+            print(f"{name:<15} {ip:<16} {icmp:<12} {http:<12} {location:<20}")
             name = ""
 
-        for ws in ws_list:
-            ws_url = urlparse(ws["url"]).netloc
-            if ws.get("connect_ms") is not None:
-                ws_connect = f"{ws['connect_ms']} ms"
-                ws_msg = f"{ws['first_message_ms']} ms"
-            else:
-                ws_connect = "error"
-                ws_msg = ws.get("error", "")[:20]
-            print(f"{'':15} {'[WS] ' + ws_url:<16} {'':12} {'':12} {ws_connect:<12} {ws_msg:<12}")
+        if ws_list:
+            print(f"{'':15} {'--- WebSocket ---'}")
+            for ws in ws_list:
+                ws_host = urlparse(ws["url"]).netloc
+                if ws.get("connect_ms") is not None:
+                    print(
+                        f"{'':15} {ws_host:<16} "
+                        f"connect: {ws['connect_ms']:<8} "
+                        f"1st msg: {ws['first_message_ms']:<8} "
+                        f"stream avg: {ws['stream_avg_ms']:<8} "
+                        f"min: {ws['stream_min_ms']:<8} "
+                        f"max: {ws['stream_max_ms']}"
+                    )
+                else:
+                    print(f"{'':15} {ws_host:<16} ERROR: {ws.get('error', 'Unknown')}")
 
-
-    print("-" * 100)
+    print("-" * 75)
 
 
 def get_hosting_recommendation(locations: list[str]) -> str:
