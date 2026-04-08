@@ -27,10 +27,10 @@ EXCHANGES = {
             "https://api4.binance.com/api/v3/ping",
         ],
         "description": "Largest CEX by volume (Binance)",
-        "websocket": {
-            "url": "wss://stream.binance.com:443/ws/btcusdt@ticker",
-            "subscribe": None,
-        },
+        "websocket": [
+            {"url": "wss://stream.binance.com:443/ws/btcusdt@ticker", "subscribe": None},
+            {"url": "wss://data-stream.binance.vision/ws/btcusdt@ticker", "subscribe": None},
+        ],
     },
     "MEXC": {
         "endpoints": [
@@ -38,10 +38,9 @@ EXCHANGES = {
             "https://www.mexc.com/",
         ],
         "description": "CEX with wide altcoin coverage (MEXC Global)",
-        "websocket": {
-            "url": "wss://wbs-api.mexc.com/ws",
-            "subscribe": {"method": "SUBSCRIPTION", "params": ["spot@public.miniTicker.v3.api@BTCUSDT"]},
-        },
+        "websocket": [
+            {"url": "wss://wbs-api.mexc.com/ws", "subscribe": {"method": "SUBSCRIPTION", "params": ["spot@public.miniTicker.v3.api@BTCUSDT"]}},
+        ],
     },
     "Hibachi": {
         "endpoints": [

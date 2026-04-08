@@ -317,16 +317,18 @@ def analyze_exchange(exchange_name: str, exchange_data: dict) -> dict:
         exchange_result["endpoints"].append(endpoint_result)
         time.sleep(GEOIP_PAUSE_SECONDS)
 
-    ws_config = exchange_data.get("websocket")
-    if ws_config:
-        print(f"\n  WebSocket: {ws_config['url']}")
-        print("    [WS] Connecting...", end=" ", flush=True)
-        ws_result = check_ws_latency(ws_config)
-        exchange_result["websocket"] = ws_result
-        if ws_result["connect_ms"] is not None:
-            print(f"OK (connect: {ws_result['connect_ms']} ms, first msg: {ws_result['first_message_ms']} ms)")
-        else:
-            print(f"ERROR: {ws_result.get('error', 'Unknown')}")
+    ws_configs = exchange_data.get("websocket")
+    if ws_configs:
+        exchange_result["websocket"] = []
+        for ws_config in ws_configs:
+            print(f"\n  WebSocket: {ws_config['url']}")
+            print("    [WS] Connecting...", end=" ", flush=True)
+            ws_result = check_ws_latency(ws_config)
+            exchange_result["websocket"].append(ws_result)
+            if ws_result["connect_ms"] is not None:
+                print(f"OK (connect: {ws_result['connect_ms']} ms, first msg: {ws_result['first_message_ms']} ms)")
+            else:
+                print(f"ERROR: {ws_result.get('error', 'Unknown')}")
     else:
         exchange_result["websocket"] = None
 
@@ -361,9 +363,7 @@ def print_summary(results: list) -> None:
 
     for exchange in results:
         name = exchange["name"]
-        ws = exchange.get("websocket")
-        ws_connect = ""
-        ws_msg = ""
+        ws_list = exchange.get("websocket") or []
 
         for i, endpoint in enumerate(exchange["endpoints"]):
             ping_result = endpoint["ping"]
@@ -374,16 +374,6 @@ def print_summary(results: list) -> None:
             icmp = f"{ping_result['avg_ms']} ms" if ping_result["avg_ms"] is not None else "blocked"
             http = f"{http_result['http_latency_ms']} ms" if http_result and http_result["http_latency_ms"] is not None else "error"
 
-            if i == 0 and ws and ws.get("connect_ms") is not None:
-                ws_connect = f"{ws['connect_ms']} ms"
-                ws_msg = f"{ws['first_message_ms']} ms"
-            elif i > 0:
-                ws_connect = ""
-                ws_msg = ""
-            elif i == 0 and ws and ws.get("error"):
-                ws_connect = "error"
-                ws_msg = ""
-
             if geo_result and geo_result["city"]:
                 location = f"{geo_result['city']}, {geo_result['country_code']}"
             elif geo_result and geo_result["country"]:
@@ -391,8 +381,19 @@ def print_summary(results: list) -> None:
             else:
                 location = "Unknown"
 
-            print(f"{name:<15} {ip:<16} {icmp:<12} {http:<12} {ws_connect:<12} {ws_msg:<12} {location:<20}")
+            print(f"{name:<15} {ip:<16} {icmp:<12} {http:<12} {'':12} {'':12} {location:<20}")
             name = ""
+
+        for ws in ws_list:
+            ws_url = urlparse(ws["url"]).netloc
+            if ws.get("connect_ms") is not None:
+                ws_connect = f"{ws['connect_ms']} ms"
+                ws_msg = f"{ws['first_message_ms']} ms"
+            else:
+                ws_connect = "error"
+                ws_msg = ws.get("error", "")[:20]
+            print(f"{'':15} {'[WS] ' + ws_url:<16} {'':12} {'':12} {ws_connect:<12} {ws_msg:<12}")
+
 
     print("-" * 100)
 
@@ -446,7 +447,7 @@ def save_results(results: list, timestamp: str, own_location: dict = None) -> No
         )
 
         for exchange in results:
-            ws = exchange.get("websocket")
+            ws_list = exchange.get("websocket") or []
             for endpoint in exchange["endpoints"]:
                 ping_result = endpoint["ping"]
                 http_result = endpoint["http"]
@@ -460,12 +461,29 @@ def save_results(results: list, timestamp: str, own_location: dict = None) -> No
                         ping_result["ip"] if ping_result["ip"] and not str(ping_result["ip"]).startswith("DNS") else "",
                         ping_result["avg_ms"] or "",
                         http_result["http_latency_ms"] if http_result else "",
-                        ws["connect_ms"] if ws and ws.get("connect_ms") else "",
-                        ws["first_message_ms"] if ws and ws.get("first_message_ms") else "",
+                        "",
+                        "",
                         geo_result.get("country", ""),
                         geo_result.get("city", ""),
                         geo_result.get("org") or geo_result.get("isp", ""),
                         geo_result.get("as", ""),
+                    ]
+                )
+            for ws in ws_list:
+                writer.writerow(
+                    [
+                        exchange["name"],
+                        ws["url"],
+                        urlparse(ws["url"]).netloc,
+                        "",
+                        "",
+                        "",
+                        ws.get("connect_ms", ""),
+                        ws.get("first_message_ms", ""),
+                        "",
+                        "",
+                        "",
+                        ws.get("error", ""),
                     ]
                 )
     print(f"Saved CSV: {csv_path}")
@@ -489,13 +507,14 @@ def save_results(results: list, timestamp: str, own_location: dict = None) -> No
             file.write(f"Estimated location: {', '.join(exchange['estimated_location'])}\n")
             file.write(f"Best endpoint: {exchange['best_endpoint']}\n")
 
-            ws = exchange.get("websocket")
-            if ws and ws.get("connect_ms") is not None:
-                file.write(f"WebSocket: {ws['url']}\n")
-                file.write(f"  WS Connect: {ws['connect_ms']} ms\n")
-                file.write(f"  WS First Message: {ws['first_message_ms']} ms\n")
-            elif ws and ws.get("error"):
-                file.write(f"WebSocket: {ws['url']} — ERROR: {ws['error']}\n")
+            ws_list = exchange.get("websocket") or []
+            for ws in ws_list:
+                if ws.get("connect_ms") is not None:
+                    file.write(f"WebSocket: {ws['url']}\n")
+                    file.write(f"  WS Connect: {ws['connect_ms']} ms\n")
+                    file.write(f"  WS First Message: {ws['first_message_ms']} ms\n")
+                elif ws.get("error"):
+                    file.write(f"WebSocket: {ws['url']} — ERROR: {ws['error']}\n")
 
             file.write("Endpoints:\n")
 
