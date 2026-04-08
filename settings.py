@@ -17,6 +17,23 @@ GEOIP_API = (
 )
 
 EXCHANGES = {
+    "Binance": {
+        "endpoints": [
+            "https://api.binance.com/api/v3/ping",
+            "https://api1.binance.com/api/v3/ping",
+            "https://api2.binance.com/api/v3/ping",
+            "https://api3.binance.com/api/v3/ping",
+            "https://api4.binance.com/api/v3/ping",
+        ],
+        "description": "Largest CEX by volume (Binance)",
+    },
+    "MEXC": {
+        "endpoints": [
+            "https://api.mexc.com/api/v3/ping",
+            "https://www.mexc.com/",
+        ],
+        "description": "CEX with wide altcoin coverage (MEXC Global)",
+    },
     "Hibachi": {
         "endpoints": [
             "https://api-doc.hibachi.xyz/",
