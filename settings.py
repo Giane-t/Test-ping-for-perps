@@ -8,6 +8,7 @@ PING_COUNT = 4
 PING_TIMEOUT_SECONDS = 3
 PING_COMMAND_TIMEOUT_SECONDS = 30
 HTTP_TIMEOUT_SECONDS = 10
+WS_TIMEOUT_SECONDS = 10
 GEOIP_TIMEOUT_SECONDS = 10
 GEOIP_PAUSE_SECONDS = 0.5
 
@@ -26,6 +27,10 @@ EXCHANGES = {
             "https://api4.binance.com/api/v3/ping",
         ],
         "description": "Largest CEX by volume (Binance)",
+        "websocket": {
+            "url": "wss://stream.binance.com:9443/ws/btcusdt@ticker",
+            "subscribe": None,
+        },
     },
     "MEXC": {
         "endpoints": [
@@ -33,6 +38,10 @@ EXCHANGES = {
             "https://www.mexc.com/",
         ],
         "description": "CEX with wide altcoin coverage (MEXC Global)",
+        "websocket": {
+            "url": "wss://wbs-api.mexc.com/ws",
+            "subscribe": {"method": "SUBSCRIPTION", "params": ["spot@public.miniTicker.v3.api@BTCUSDT"]},
+        },
     },
     "Hibachi": {
         "endpoints": [
